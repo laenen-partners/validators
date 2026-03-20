@@ -1,19 +1,12 @@
 package validators
 
 import (
+	"fmt"
 	"math/big"
 	"strings"
 	"unicode"
 )
 
-// IBANResult holds the result of IBAN validation.
-type IBANResult struct {
-	Valid       bool
-	Error       string
-	CountryCode string // two-letter country code (if valid format)
-}
-
-// ibanLengths maps country codes to expected IBAN lengths.
 var ibanLengths = map[string]int{
 	"AL": 28, "AD": 24, "AT": 20, "AZ": 28, "BH": 22,
 	"BY": 28, "BE": 16, "BA": 20, "BR": 29, "BG": 22,
@@ -33,51 +26,54 @@ var ibanLengths = map[string]int{
 	"GB": 22, "VA": 22, "VG": 24,
 }
 
-// IBAN validates an IBAN (International Bank Account Number).
-// Checks format, country-specific length, and MOD-97 checksum.
-func IBAN(value string) IBANResult {
+// IBAN validates an International Bank Account Number.
+func IBAN(value string) Result {
 	if value == "" {
-		return IBANResult{Valid: true}
+		return valid(nil)
 	}
 
-	// Remove spaces and convert to uppercase.
 	iban := strings.ToUpper(strings.ReplaceAll(value, " ", ""))
 
-	// Must be at least 5 characters (2 country + 2 check + 1 BBAN).
 	if len(iban) < 5 {
-		return IBANResult{Valid: false, Error: "IBAN is too short"}
+		return invalid(ErrIBANTooShort, "IBAN is too short", "iban", map[string]any{
+			"value":  value,
+			"length": len(iban),
+		})
 	}
 
-	// Must contain only letters and digits.
 	for _, c := range iban {
 		if !unicode.IsLetter(c) && !unicode.IsDigit(c) {
-			return IBANResult{Valid: false, Error: "IBAN contains invalid characters"}
+			return invalid(ErrIBANInvalidChars, "IBAN contains invalid characters", "iban", map[string]any{
+				"value": value,
+			})
 		}
 	}
 
-	// Country code must be two letters.
 	cc := iban[:2]
 	if !unicode.IsLetter(rune(cc[0])) || !unicode.IsLetter(rune(cc[1])) {
-		return IBANResult{Valid: false, Error: "Invalid country code"}
+		return invalid(ErrIBANCountryInvalid, "Invalid country code", "iban", map[string]any{
+			"value":        value,
+			"country_code": cc,
+		})
 	}
 
-	// Check country-specific length.
 	if expected, ok := ibanLengths[cc]; ok {
 		if len(iban) != expected {
-			return IBANResult{
-				Valid:       false,
-				Error:       "Invalid IBAN length for " + cc,
-				CountryCode: cc,
-			}
+			return invalid(ErrIBANLengthMismatch,
+				fmt.Sprintf("IBAN length for %s must be %d, got %d", cc, expected, len(iban)),
+				"iban", map[string]any{
+					"value":           value,
+					"country_code":    cc,
+					"expected_length": expected,
+					"actual_length":   len(iban),
+				})
 		}
 	}
 
-	// MOD-97 checksum: move first 4 chars to end, convert letters to digits, check mod 97 == 1.
 	rearranged := iban[4:] + iban[:4]
 	var digits strings.Builder
 	for _, c := range rearranged {
 		if unicode.IsLetter(c) {
-			// A=10, B=11, ..., Z=35
 			digits.WriteString(big.NewInt(int64(c - 'A' + 10)).String())
 		} else {
 			digits.WriteByte(byte(c))
@@ -88,12 +84,13 @@ func IBAN(value string) IBANResult {
 	num.SetString(digits.String(), 10)
 	mod := new(big.Int).Mod(num, big.NewInt(97))
 	if mod.Int64() != 1 {
-		return IBANResult{
-			Valid:       false,
-			Error:       "Invalid IBAN checksum",
-			CountryCode: cc,
-		}
+		return invalid(ErrIBANChecksumInvalid, "Invalid IBAN checksum", "iban", map[string]any{
+			"value":        value,
+			"country_code": cc,
+		})
 	}
 
-	return IBANResult{Valid: true, CountryCode: cc}
+	return valid(map[string]any{
+		"country_code": cc,
+	})
 }

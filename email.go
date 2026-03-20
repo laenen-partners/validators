@@ -6,58 +6,53 @@ import (
 	"strings"
 )
 
-// emailRegex validates email format requiring a TLD (e.g., .com, .org).
-// Local part: letters, digits, and special chars
-// Domain: at least one dot with a valid TLD (2+ chars)
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_` + "`" + `{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$`)
-
-// EmailResult holds the result of email validation.
-type EmailResult struct {
-	Valid  bool
-	Error  string
-	Domain string // The domain part of the email (if valid format)
-}
 
 // Email validates an email address.
 // If checkMX is true, it verifies the domain has MX records.
-func Email(value string, checkMX bool) EmailResult {
-	// Empty value is valid (use HTML required attribute for mandatory fields)
+func Email(value string, checkMX bool) Result {
 	if value == "" {
-		return EmailResult{Valid: true}
+		return valid(nil)
 	}
 
-	// Format validation
+	// RFC 5321: total address must not exceed 254 characters.
+	if len(value) > 254 {
+		return invalid(ErrEmailFormatInvalid, "Email address exceeds 254 characters", "email", map[string]any{
+			"value":  value,
+			"length": len(value),
+		})
+	}
+
 	if !emailRegex.MatchString(value) {
-		return EmailResult{
-			Valid: false,
-			Error: "Invalid email format",
-		}
+		return invalid(ErrEmailFormatInvalid, "Invalid email format", "email", map[string]any{
+			"value": value,
+		})
 	}
 
-	// Extract domain
-	parts := strings.Split(value, "@")
-	if len(parts) != 2 {
-		return EmailResult{
-			Valid: false,
-			Error: "Invalid email format",
-		}
-	}
+	// The regex guarantees exactly one @, so SplitN is safe here.
+	parts := strings.SplitN(value, "@", 2)
+	local := parts[0]
 	domain := parts[1]
 
-	// Optional MX record check
+	// RFC 5321: local part must not exceed 64 characters.
+	if len(local) > 64 {
+		return invalid(ErrEmailFormatInvalid, "Email local part exceeds 64 characters", "email", map[string]any{
+			"value":        value,
+			"local_length": len(local),
+		})
+	}
+
 	if checkMX {
 		mxRecords, err := net.LookupMX(domain)
 		if err != nil || len(mxRecords) == 0 {
-			return EmailResult{
-				Valid:  false,
-				Error:  "Domain does not accept email",
-				Domain: domain,
-			}
+			return invalid(ErrEmailDomainNoMX, "Domain does not accept email", "email", map[string]any{
+				"value":  value,
+				"domain": domain,
+			})
 		}
 	}
 
-	return EmailResult{
-		Valid:  true,
-		Domain: domain,
-	}
+	return valid(map[string]any{
+		"domain": domain,
+	})
 }
