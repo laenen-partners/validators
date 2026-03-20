@@ -198,3 +198,39 @@ const (
 	ErrBSNFormatInvalid   = "bsn.format.invalid"
 	ErrBSNChecksumInvalid = "bsn.checksum.invalid"
 )
+
+// Error codes — date in past
+const (
+	ErrDateInPastNotPast = "dateinpast.range.not_past"
+	ErrDateInPastTooFar  = "dateinpast.range.too_far"
+)
+
+// Error codes — date in future
+const (
+	ErrDateInFutureNotFuture = "dateinfuture.range.not_future"
+	ErrDateInFutureTooFar    = "dateinfuture.range.too_far"
+)
+
+// Error codes — date range
+const (
+	ErrDateRangeBeforeMin = "daterange.range.before_min"
+	ErrDateRangeAfterMax  = "daterange.range.after_max"
+)
+
+// Error codes — age at least
+const (
+	ErrAgeAtLeastTooYoung = "ageatleast.range.too_young"
+)
+
+// Error codes — number in range
+const (
+	ErrNumberFormatInvalid = "number.format.invalid"
+	ErrNumberBelowMin      = "number.range.below_min"
+	ErrNumberAboveMax      = "number.range.above_max"
+)
+
+// Error codes — string length
+const (
+	ErrStringTooShort = "string.length.too_short"
+	ErrStringTooLong  = "string.length.too_long"
+)

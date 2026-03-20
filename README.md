@@ -60,6 +60,20 @@ go get github.com/laenen-partners/validators
 | Belgian National Number | `BelgianNationalNumber(value)` | 11-digit Rijksregisternummer with MOD-97 check |
 | Dutch BSN | `DutchBSN(value)` | 9-digit Burgerservicenummer with 11-check |
 
+### Constraint Validators
+
+Validators that enforce business constraints on values rather than format.
+
+| Validator | Function | Description |
+|-----------|----------|-------------|
+| Date In Past | `DateInPast(value, maxAge)` | Date must be in the past, optionally within a max duration |
+| Date In Future | `DateInFuture(value, maxAhead)` | Date must be in the future, optionally within a max duration |
+| Date Range | `DateRange(value, min, max)` | Date must fall between min and max (inclusive, either bound optional) |
+| Age At Least | `AgeAtLeast(birthDate, minYears)` | Birth date must represent at least N years of age |
+| Number In Range | `NumberInRange(value, min, max)` | Exact decimal comparison via `math/big.Rat` — no float errors |
+| Number In Range (float) | `NumberInRangeFloat(value, min, max)` | Float64 convenience variant (caller accepts precision tradeoffs) |
+| String Length | `StringLength(value, min, max)` | Unicode rune count within bounds (multi-byte safe) |
+
 ## Structured Errors
 
 Every validator returns a `Result`:
@@ -169,6 +183,24 @@ if !r.Valid {
         // missing + prefix
     }
 }
+```
+
+### Constraint validators
+
+```go
+// Age gate — exact calendar year calculation
+r := validators.AgeAtLeast("2010-06-15", 18)
+// r.Errors[0].Code: "ageatleast.range.too_young"
+// r.Errors[0].Context: {"age": 15, "min_age": 18, ...}
+
+// Financial amount — exact decimal, no float drift
+r = validators.NumberInRange("19.99", "0.01", "9999.99")
+
+// Date must be in the past, at most 10 years ago
+r = validators.DateInPast("2020-01-01", 10 * 365 * 24 * time.Hour)
+
+// String length in Unicode runes (not bytes)
+r = validators.StringLength("héllo 🌍", 1, 10) // length = 8 runes
 ```
 
 ### JSON serialization
